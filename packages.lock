@@ -1,0 +1,11 @@
+{
+	"Repository": "github.com/djfaith/hookserve",
+	"Packages": {
+		"github.com/bmatsuo/go-jsontree": {
+       "Source": "git@github.com:bmatsuo/go-jsontree.git",
+       "Revision": "8a1cc1e88d44390691f69163f6bc597aac267cc3"
+		}
+	}
+}
+
+
