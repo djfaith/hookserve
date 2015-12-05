@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+  "fmt"
 )
 
 var ErrInvalidEventFormat = errors.New("Unable to parse event string. Invalid Format.")
@@ -18,7 +19,8 @@ type Event struct {
 	Owner      string // The username of the owner of the repository
 	Repo       string // The name of the repository
 	Branch     string // The branch the event took place on
-	Commit     string // The head commit hash attached to the event
+	HeadCommit     string // The head commit hash attached to the event
+  DiffFiles    map[string]struct{} // List of files modified by the event
 	Type       string // Can be either "pull_request" or "push"
 	BaseOwner  string // For Pull Requests, contains the base owner
 	BaseRepo   string // For Pull Requests, contains the base repo
@@ -49,7 +51,7 @@ func NewEvent(e string) (*Event, error) {
 	event.Owner = parts[1][8:]
 	event.Repo = parts[2][8:]
 	event.Branch = parts[3][8:]
-	event.Commit = parts[4][8:]
+	event.HeadCommit = parts[4][8:]
 
 	// Fill in extra values if it's a pull_request
 	if event.Type == "pull_request" {
@@ -69,7 +71,7 @@ func (e *Event) String() (output string) {
 	output += "owner:  " + e.Owner + "\n"
 	output += "repo:   " + e.Repo + "\n"
 	output += "branch: " + e.Branch + "\n"
-	output += "commit: " + e.Commit + "\n"
+	output += "commit: " + e.HeadCommit + "\n"
 
 	if e.Type == "pull_request" {
 		output += "bowner: " + e.BaseOwner + "\n"
@@ -89,11 +91,11 @@ type Server struct {
 }
 
 // Create a new server with sensible defaults.
-// By default the Port is set to 80 and the Path is set to `/postreceive`
+// By default the Port is set to 80 and the Path is set to `/hook`
 func NewServer() *Server {
 	return &Server{
 		Port:       80,
-		Path:       "/postreceive",
+		Path:       "/hook",
 		IgnoreTags: true,
 		Events:     make(chan Event, 10), // buffered to 10 items
 	}
@@ -197,15 +199,49 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		event.Type = eventType
 		event.Branch = rawRef[11:]
 		event.Repo, err = request.Get("repository").Get("name").String()
+    
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		event.Commit, err = request.Get("head_commit").Get("id").String()
+    
+    if event.Branch != "master" {
+      return
+    }
+    
+		event.HeadCommit, err = request.Get("head_commit").Get("id").String()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+    
+    // Get the list of modified files by this push
+    commits := request.Get("commits")
+    if commits.Err() != nil {
+        http.Error(w, commits.Err().Error(), http.StatusInternalServerError)
+        return
+    }
+    
+    commitsSlice, err := commits.Array()
+    
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    
+    event.DiffFiles = make(map[string]struct{})
+    for _, commit := range commitsSlice {
+        objects := commit.(map[string]interface{})
+        
+        if modifiedFiles, ok := objects["modified"]; ok {
+            for _, file := range modifiedFiles.([]interface{}) {
+                event.DiffFiles[file.(string)] = struct{}{}
+            }
+        }
+    }
+    
+    fmt.Printf("val is %+v", event.DiffFiles)
+    
 		event.Owner, err = request.Get("repository").Get("owner").Get("name").String()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -239,7 +275,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		event.Commit, err = request.Get("pull_request").Get("head").Get("sha").String()
+		event.HeadCommit, err = request.Get("pull_request").Get("head").Get("sha").String()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
