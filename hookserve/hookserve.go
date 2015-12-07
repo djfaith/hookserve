@@ -10,21 +10,20 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-  "fmt"
 )
 
 var ErrInvalidEventFormat = errors.New("Unable to parse event string. Invalid Format.")
 
 type Event struct {
-	Owner      string // The username of the owner of the repository
-	Repo       string // The name of the repository
-	Branch     string // The branch the event took place on
-	HeadCommit     string // The head commit hash attached to the event
-  DiffFiles    map[string]struct{} // List of files modified by the event
-	Type       string // Can be either "pull_request" or "push"
-	BaseOwner  string // For Pull Requests, contains the base owner
-	BaseRepo   string // For Pull Requests, contains the base repo
-	BaseBranch string // For Pull Requests, contains the base branch
+	Owner      string              // The username of the owner of the repository
+	Repo       string              // The name of the repository
+	Branch     string              // The branch the event took place on
+	HeadCommit string              // The head commit hash attached to the event
+	DiffFiles  map[string]struct{} // List of files modified by the event
+	Type       string              // Can be either "pull_request" or "push"
+	BaseOwner  string              // For Pull Requests, contains the base owner
+	BaseRepo   string              // For Pull Requests, contains the base repo
+	BaseBranch string              // For Pull Requests, contains the base branch
 }
 
 // Create a new event from a string, the string format being the same as the one produced by event.String()
@@ -71,7 +70,7 @@ func (e *Event) String() (output string) {
 	output += "owner:  " + e.Owner + "\n"
 	output += "repo:   " + e.Repo + "\n"
 	output += "branch: " + e.Branch + "\n"
-	output += "commit: " + e.HeadCommit + "\n"
+	output += "head_commit: " + e.HeadCommit + "\n"
 
 	if e.Type == "pull_request" {
 		output += "bowner: " + e.BaseOwner + "\n"
@@ -118,7 +117,7 @@ func (s *Server) GoListenAndServe() {
 
 // Checks if the given ref should be ignored
 func (s *Server) ignoreRef(rawRef string) bool {
-	if (rawRef[:10] == "refs/tags/" && !s.IgnoreTags) {
+	if rawRef[:10] == "refs/tags/" && !s.IgnoreTags {
 		return false
 	}
 	return rawRef[:11] != "refs/heads/"
@@ -199,49 +198,47 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		event.Type = eventType
 		event.Branch = rawRef[11:]
 		event.Repo, err = request.Get("repository").Get("name").String()
-    
+
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-    
-    if event.Branch != "master" {
-      return
-    }
-    
+
+		if event.Branch != "master" {
+			return
+		}
+
 		event.HeadCommit, err = request.Get("head_commit").Get("id").String()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-    
-    // Get the list of modified files by this push
-    commits := request.Get("commits")
-    if commits.Err() != nil {
-        http.Error(w, commits.Err().Error(), http.StatusInternalServerError)
-        return
-    }
-    
-    commitsSlice, err := commits.Array()
-    
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
-    }
-    
-    event.DiffFiles = make(map[string]struct{})
-    for _, commit := range commitsSlice {
-        objects := commit.(map[string]interface{})
-        
-        if modifiedFiles, ok := objects["modified"]; ok {
-            for _, file := range modifiedFiles.([]interface{}) {
-                event.DiffFiles[file.(string)] = struct{}{}
-            }
-        }
-    }
-    
-    fmt.Printf("val is %+v", event.DiffFiles)
-    
+
+		// Get the list of modified files by this push
+		commits := request.Get("commits")
+		if commits.Err() != nil {
+			http.Error(w, commits.Err().Error(), http.StatusInternalServerError)
+			return
+		}
+
+		commitsSlice, err := commits.Array()
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		event.DiffFiles = make(map[string]struct{})
+		for _, commit := range commitsSlice {
+			objects := commit.(map[string]interface{})
+
+			if modifiedFiles, ok := objects["modified"]; ok {
+				for _, file := range modifiedFiles.([]interface{}) {
+					event.DiffFiles[file.(string)] = struct{}{}
+				}
+			}
+		}
+
 		event.Owner, err = request.Get("repository").Get("owner").Get("name").String()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
