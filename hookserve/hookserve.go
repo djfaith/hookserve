@@ -204,10 +204,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		if event.Branch != "master" {
-			return
-		}
-
 		event.HeadCommit, err = request.Get("head_commit").Get("id").String()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
