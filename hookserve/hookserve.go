@@ -233,6 +233,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 					event.DiffFiles[file.(string)] = struct{}{}
 				}
 			}
+      
+      if addedFiles, ok := objects["added"]; ok {
+				for _, file := range addedFiles.([]interface{}) {
+					event.DiffFiles[file.(string)] = struct{}{}
+				}
+			}
 		}
 
 		event.Owner, err = request.Get("repository").Get("owner").Get("name").String()
