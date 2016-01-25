@@ -24,6 +24,7 @@ type Event struct {
 	BaseOwner  string              // For Pull Requests, contains the base owner
 	BaseRepo   string              // For Pull Requests, contains the base repo
 	BaseBranch string              // For Pull Requests, contains the base branch
+	PRHtmlUrl  string              // For Pull Requests, contains the PR web url
 }
 
 // Create a new event from a string, the string format being the same as the one produced by event.String()
@@ -233,8 +234,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 					event.DiffFiles[file.(string)] = struct{}{}
 				}
 			}
-      
-      if addedFiles, ok := objects["added"]; ok {
+
+			if addedFiles, ok := objects["added"]; ok {
 				for _, file := range addedFiles.([]interface{}) {
 					event.DiffFiles[file.(string)] = struct{}{}
 				}
@@ -294,6 +295,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		event.PRHtmlUrl, err = request.Get("pull_request").Get("html_url").String()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 	} else {
 		http.Error(w, "Unknown Event Type "+eventType, http.StatusInternalServerError)
 		return
