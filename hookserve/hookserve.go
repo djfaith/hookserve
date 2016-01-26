@@ -253,8 +253,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		// If the action is not to open or to synchronize we don't care about it
-		if action != "synchronize" && action != "opened" {
+		// If the action is not to open we don't care about it
+		if action != "opened" {
 			return
 		}
 
